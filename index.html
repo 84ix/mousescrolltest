@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Scroll Speed Monitor</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 20px;
+      background: #f5f5f5;
+    }
+    h1 {
+      font-size: 20px;
+      margin-bottom: 8px;
+    }
+    .panel {
+      background: #fff;
+      padding: 12px 16px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      margin-bottom: 16px;
+    }
+    .values {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      font-size: 14px;
+    }
+    .value-box {
+      padding: 8px;
+      border-radius: 6px;
+      background: #fafafa;
+      text-align: center;
+      border: 1px solid #e0e0e0;
+      box-sizing: border-box;
+    }
+    .value-label {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .value-num {
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    /* Max box: put button on the right side */
+    .max-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .max-info {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+    }
+    .max-row button {
+      padding: 6px 10px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      background: #f5f5f5;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .max-row button:hover {
+      background: #e9e9e9;
+    }
+
+    /* scale control row */
+    .scale-row {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #555;
+    }
+    .scale-row input {
+      width: 80px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      font-size: 12px;
+      box-sizing: border-box;
+      text-align: right;
+    }
+    .scale-row button {
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      background: #f5f5f5;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .scale-row button:hover {
+      background: #e9e9e9;
+    }
+
+    /* graph + scroll window layout */
+    .graph-layout {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    #graph {
+      width: 100%;
+      max-width: 1050px; /* 1.5x wider than 700px */
+      height: 320px;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .scroll-test {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 160px;
+      font-size: 12px;
+      color: #555;
+    }
+    #scroll-window {
+      width: 180px;
+      height: 320px;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      overflow-y: auto;
+      font-family: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 13px;
+    }
+    .scroll-row {
+      padding: 4px 8px;
+      border-bottom: 1px solid #eeeeee;
+      box-sizing: border-box;
+    }
+    .scroll-row.zero {
+      background: #fffbe6;
+      font-weight: bold;
+    }
+    .hint {
+      font-size: 11px;
+      color: #666;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Scroll Speed Monitor</h1>
+
+  <div class="panel">
+    <div class="values">
+      <div class="value-box">
+        <div class="value-label">Current (0.2s avg)</div>
+        <div class="value-num" id="val-current">0.0</div>
+        <div class="value-label">lines/sec</div>
+      </div>
+      <div class="value-box">
+        <div class="value-label">Last 1s avg</div>
+        <div class="value-num" id="val-1s">0.0</div>
+        <div class="value-label">lines/sec</div>
+      </div>
+      <div class="value-box">
+        <div class="value-label">Last 3s avg</div>
+        <div class="value-num" id="val-3s">0.0</div>
+        <div class="value-label">lines/sec</div>
+      </div>
+      <div class="value-box max-row">
+        <div class="max-info">
+          <div class="value-label">Max speed (current window)</div>
+          <div class="value-num" id="val-max">0.0</div>
+          <div class="value-label">lines/sec</div>
+        </div>
+        <button id="btn-reset-max">Reset Max</button>
+      </div>
+    </div>
+
+    <div class="scale-row">
+      <span>Pixels per 1 logical line:</span>
+      <input id="px-per-line" type="number" min="1" step="1" value="160" />
+      <button id="btn-apply-scale">Apply</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="graph-layout">
+      <canvas id="graph"></canvas>
+
+      <div class="scroll-test">
+        <div>Scroll test table<br>(-1000 to +1000)</div>
+        <div id="scroll-window"></div>
+      </div>
+    </div>
+    <div class="hint">
+      X axis: time (s, right = now) / Y axis: scroll speed (lines/sec)
+    </div>
+  </div>
+
+  <script>
+    // ===== settings =====
+    const HISTORY_SECONDS = 20;
+    const SAMPLE_INTERVAL = 20; // high time resolution
+    const CURRENT_WINDOW = 0.2;
+
+    const scrollEvents = [];
+    const speedSamples = [];
+
+    let maxSpeedRecorded = 0;
+
+    // pixels per 1 logical line (for deltaMode === 0)
+    const pxInput = document.getElementById('px-per-line');
+    const btnApplyScale = document.getElementById('btn-apply-scale');
+    let pixelsPerLine = parseFloat(pxInput.value) || 160;
+
+    // DOM
+    const valCurrent  = document.getElementById('val-current');
+    const val1s       = document.getElementById('val-1s');
+    const val3s       = document.getElementById('val-3s');
+    const valMax      = document.getElementById('val-max');
+    const btnResetMax = document.getElementById('btn-reset-max');
+
+    const canvas = document.getElementById('graph');
+    const ctx    = canvas.getContext('2d');
+
+    const scrollWindow = document.getElementById('scroll-window');
+
+    // ===== scroll test table =====
+    const MIN_ROW = -1000;
+    const MAX_ROW = 1000;
+
+    for (let i = MIN_ROW; i <= MAX_ROW; i++) {
+      const row = document.createElement('div');
+      row.className = 'scroll-row';
+      if (i === 0) row.classList.add('zero');
+      row.textContent = i;
+      scrollWindow.appendChild(row);
+    }
+
+    // center 0
+    const zeroRow = scrollWindow.querySelector('.scroll-row.zero');
+    if (zeroRow) {
+      const targetTop = zeroRow.offsetTop + zeroRow.offsetHeight / 2;
+      scrollWindow.scrollTop = targetTop - scrollWindow.clientHeight / 2;
+    }
+
+    // ===== canvas resize =====
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width  = rect.width;
+      canvas.height = rect.height;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // deltaY -> logical lines
+    // - deltaMode === 1: "lines" from OS. On this system, 4 lines ≈ 1 logical line.
+    // - deltaMode === 0: pixels, converted using pixelsPerLine.
+    function toLines(deltaY, deltaMode) {
+      if (deltaMode === 1) {
+        return -deltaY / 4; // 4 OS lines -> 1 logical line
+      } else if (deltaMode === 0) {
+        return -deltaY / pixelsPerLine;
+      } else {
+        return -deltaY / 4;
+      }
+    }
+
+    // apply pixelsPerLine from UI
+    btnApplyScale.addEventListener('click', () => {
+      const v = parseFloat(pxInput.value);
+      if (v > 0 && Number.isFinite(v)) {
+        pixelsPerLine = v;
+      }
+    });
+
+    // also allow Enter key in the input
+    pxInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        btnApplyScale.click();
+      }
+    });
+
+    // global wheel listener
+    window.addEventListener('wheel', (e) => {
+      const now = performance.now() / 1000;
+      const deltaLines = toLines(e.deltaY, e.deltaMode);
+      scrollEvents.push({ time: now, deltaLines });
+
+      const limit = now - HISTORY_SECONDS;
+      while (scrollEvents.length > 0 && scrollEvents[0].time < limit) {
+        scrollEvents.shift();
+      }
+    }, { passive: true });
+
+    function computeAverageSpeed(windowSec, nowSec) {
+      const fromTime = nowSec - windowSec;
+      let sumLines = 0;
+      for (let i = scrollEvents.length - 1; i >= 0; i--) {
+        const ev = scrollEvents[i];
+        if (ev.time < fromTime) break;
+        sumLines += Math.abs(ev.deltaLines);
+      }
+      return windowSec > 0 ? (sumLines / windowSec) : 0;
+    }
+
+    function format1(n) {
+      if (!isFinite(n)) return '0.0';
+      return n.toFixed(1);
+    }
+
+    function drawGraph(nowSec) {
+      const w = canvas.width;
+      const h = canvas.height;
+      const paddingLeft   = 55;
+      const paddingRight  = 10;
+      const paddingTop    = 10;
+      const paddingBottom = 25;
+
+      ctx.clearRect(0, 0, w, h);
+
+      const plotX0 = paddingLeft;
+      const plotY0 = paddingTop;
+      const plotX1 = w - paddingRight;
+      const plotY1 = h - paddingBottom;
+      const plotW  = plotX1 - plotX0;
+      const plotH  = plotY1 - plotY0;
+
+      const minTime = nowSec - HISTORY_SECONDS;
+      const samples = speedSamples.filter(s => s.time >= minTime);
+
+      let maxSpeed = 0;
+      for (const s of samples) {
+        if (s.speed > maxSpeed) maxSpeed = s.speed;
+      }
+      if (maxSpeed < 10) maxSpeed = 10;
+
+      // background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(plotX0, plotY0, plotW, plotH);
+
+      // grid
+      ctx.strokeStyle = '#cccccc';
+      ctx.lineWidth = 1;
+
+      // vertical grid (time)
+      ctx.beginPath();
+      for (let t = 0; t <= HISTORY_SECONDS; t += 5) {
+        const x = plotX0 + (t / HISTORY_SECONDS) * plotW;
+        ctx.moveTo(x, plotY0);
+        ctx.lineTo(x, plotY1);
+      }
+      ctx.stroke();
+
+      // horizontal grid (speed)
+      ctx.beginPath();
+      const yDiv = 4;
+      for (let i = 0; i <= yDiv; i++) {
+        const y = plotY1 - (i / yDiv) * plotH;
+        ctx.moveTo(plotX0, y);
+        ctx.lineTo(plotX1, y);
+      }
+      ctx.stroke();
+
+      // axis labels
+      ctx.fillStyle = '#666';
+      ctx.font = '10px system-ui';
+
+      // x axis tick labels (-20, -15, ..., 0)
+      for (let t = 0; t <= HISTORY_SECONDS; t += 5) {
+        const x = plotX0 + (t / HISTORY_SECONDS) * plotW;
+        const label = (t - HISTORY_SECONDS).toString();
+        ctx.fillText(label, x - 6, h - 10);
+      }
+      ctx.fillText('Time (s, right = now)', plotX0 + plotW / 2 - 50, h - 2);
+
+      // y axis tick labels
+      for (let i = 0; i <= yDiv; i++) {
+        const y = plotY1 - (i / yDiv) * plotH;
+        const value = (maxSpeed * i / yDiv).toFixed(0);
+        ctx.fillText(value, 22, y + 3);
+      }
+
+      // y axis title (shifted left so it does not overlap)
+      ctx.save();
+      ctx.translate(10, plotY0 + plotH / 2 + 20);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText('Scroll speed (lines/sec)', 0, 0);
+      ctx.restore();
+
+      // data line
+      if (samples.length >= 2) {
+        ctx.beginPath();
+        for (let i = 0; i < samples.length; i++) {
+          const s = samples[i];
+          const dt = nowSec - s.time;
+          const x = plotX1 - (dt / HISTORY_SECONDS) * plotW;
+          const y = plotY1 - (s.speed / maxSpeed) * plotH;
+
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = '#0077cc';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+
+    function tick() {
+      const nowSec = performance.now() / 1000;
+
+      const currentSpeed = computeAverageSpeed(CURRENT_WINDOW, nowSec);
+      const avg1s        = computeAverageSpeed(1, nowSec);
+      const avg3s        = computeAverageSpeed(3, nowSec);
+
+      // update max
+      if (currentSpeed > maxSpeedRecorded) {
+        maxSpeedRecorded = currentSpeed;
+      }
+
+      // update DOM
+      valCurrent.textContent = format1(currentSpeed);
+      val1s.textContent      = format1(avg1s);
+      val3s.textContent      = format1(avg3s);
+      valMax.textContent     = format1(maxSpeedRecorded);
+
+      // graph samples
+      speedSamples.push({ time: nowSec, speed: currentSpeed });
+      const limit = nowSec - HISTORY_SECONDS;
+      while (speedSamples.length > 0 && speedSamples[0].time < limit) {
+        speedSamples.shift();
+      }
+
+      drawGraph(nowSec);
+    }
+
+    btnResetMax.addEventListener('click', () => {
+      maxSpeedRecorded = 0;
+      valMax.textContent = '0.0';
+    });
+
+    setInterval(tick, SAMPLE_INTERVAL);
+  </script>
+</body>
+</html>

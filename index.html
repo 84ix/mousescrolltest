@@ -107,6 +107,7 @@
       flex-direction: column;
       gap: 12px;
       align-items: stretch;
+      min-width: 0;
     }
     #graph {
       width: 100%;
@@ -114,6 +115,8 @@
       border-radius: 8px;
       background: #ffffff;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      display: block;
+      min-width: 0;
     }
 
     .scroll-test {
@@ -122,55 +125,49 @@
       gap: 4px;
       font-size: 12px;
       color: #555;
+      min-width: 0;
+    }
+    .scroll-test > div {
+      min-width: 0;
     }
     
-    .scroll-window-vertical {
+    .scroll-window {
       width: 100%;
       height: 320px;
       border-radius: 8px;
       background: #ffffff;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      overflow-y: auto;
-      overflow-x: hidden;
+      max-width: 100%;
+      min-width: 0;
+      overflow: auto;
       font-family: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       font-size: 13px;
+      contain: layout;
     }
     
-    .scroll-window-horizontal {
-      width: 100%;
+    .scroll-grid {
+      position: relative;
+      width: 2000px;
+      height: 2000px;
+      background:
+        linear-gradient(#ffffffcc, #ffffffcc),
+        repeating-linear-gradient(to right, transparent 0, transparent 39px, #e4e4e4 39px, #e4e4e4 40px),
+        repeating-linear-gradient(to bottom, transparent 0, transparent 39px, #e4e4e4 39px, #e4e4e4 40px);
+    }
+    .scroll-origin {
+      position: absolute;
+      left: 960px;
+      top: 960px;
+      width: 80px;
       height: 80px;
-      border-radius: 8px;
-      background: #ffffff;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      overflow-x: auto;
-      overflow-y: hidden;
-      font-family: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      font-size: 13px;
-      display: flex;
-    }
-    
-    .scroll-row {
-      padding: 4px 8px;
-      border-bottom: 1px solid #eeeeee;
-      box-sizing: border-box;
-    }
-    .scroll-row.zero {
-      background: #fffbe6;
-      font-weight: bold;
-    }
-    
-    .scroll-row-h {
-      padding: 4px 8px;
-      border-right: 1px solid #eeeeee;
-      box-sizing: border-box;
-      white-space: nowrap;
       display: flex;
       align-items: center;
-      min-width: 40px;
-    }
-    .scroll-row-h.zero {
+      justify-content: center;
       background: #fffbe6;
+      border: 1px solid #e3d27a;
+      box-sizing: border-box;
       font-weight: bold;
+      color: #222;
     }
     
     .hint {
@@ -208,13 +205,10 @@
         max-width: 1050px;
       }
       .scroll-test {
-        min-width: 320px;
+        flex: 0 0 320px;
       }
-      .scroll-window-vertical {
-        width: 180px;
-      }
-      .scroll-window-horizontal {
-        width: 280px;
+      .scroll-window {
+        width: 320px;
       }
     }
   </style>
@@ -261,14 +255,8 @@
       <canvas id="graph"></canvas>
 
       <div class="scroll-test">
-        <div>
-          <div>Vertical scroll test</div>
-          <div id="scroll-window-v" class="scroll-window-vertical"></div>
-        </div>
-        <div>
-          <div>Horizontal scroll test</div>
-          <div id="scroll-window-h" class="scroll-window-horizontal"></div>
-        </div>
+        <div>Scroll test</div>
+        <div id="scroll-window" class="scroll-window"></div>
       </div>
     </div>
     <div class="hint">
@@ -313,48 +301,24 @@
     const canvas = document.getElementById('graph');
     const ctx    = canvas.getContext('2d');
 
-    const scrollWindowV = document.getElementById('scroll-window-v');
-    const scrollWindowH = document.getElementById('scroll-window-h');
+    const scrollWindow = document.getElementById('scroll-window');
 
-    // ===== scroll test table (vertical) =====
-    const MIN_ROW = -1000;
-    const MAX_ROW = 1000;
+    // ===== scroll test grid =====
+    const GRID_SIZE = 2000;
 
-    for (let i = MIN_ROW; i <= MAX_ROW; i++) {
-      const row = document.createElement('div');
-      row.className = 'scroll-row';
-      if (i === 0) row.classList.add('zero');
-      row.textContent = i;
-      scrollWindowV.appendChild(row);
-    }
+    const scrollGrid = document.createElement('div');
+    scrollGrid.className = 'scroll-grid';
 
-    // center 0
-    const zeroRowV = scrollWindowV.querySelector('.scroll-row.zero');
-    if (zeroRowV) {
-      const targetTop = zeroRowV.offsetTop + zeroRowV.offsetHeight / 2;
-      scrollWindowV.scrollTop = targetTop - scrollWindowV.clientHeight / 2;
-    }
+    const originCell = document.createElement('div');
+    originCell.className = 'scroll-origin';
+    originCell.textContent = 'Center';
+    scrollGrid.appendChild(originCell);
 
-    // ===== scroll test table (horizontal) =====
-    const scrollWrapper = document.createElement('div');
-    scrollWrapper.style.display = 'flex';
-    scrollWrapper.style.height = '100%';
-    
-    for (let i = -500; i <= 500; i++) {
-      const col = document.createElement('div');
-      col.className = 'scroll-row-h';
-      if (i === 0) col.classList.add('zero');
-      col.textContent = i;
-      scrollWrapper.appendChild(col);
-    }
-    scrollWindowH.appendChild(scrollWrapper);
-    
-    // center 0 horizontally
-    const zeroColH = scrollWindowH.querySelector('.scroll-row-h.zero');
-    if (zeroColH) {
-      const targetLeft = zeroColH.offsetLeft + zeroColH.offsetWidth / 2;
-      scrollWindowH.scrollLeft = targetLeft - scrollWindowH.clientWidth / 2;
-    }
+    scrollWindow.appendChild(scrollGrid);
+
+    // center the 2000 x 2000 test area
+    scrollWindow.scrollTop = (GRID_SIZE - scrollWindow.clientHeight) / 2;
+    scrollWindow.scrollLeft = (GRID_SIZE - scrollWindow.clientWidth) / 2;
 
     // ===== canvas resize =====
     function resizeCanvas() {

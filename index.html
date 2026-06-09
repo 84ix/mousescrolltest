@@ -147,27 +147,23 @@
     
     .scroll-grid {
       position: relative;
-      width: 2000px;
-      height: 2000px;
-      background:
-        linear-gradient(#ffffffcc, #ffffffcc),
-        repeating-linear-gradient(to right, transparent 0, transparent 39px, #e4e4e4 39px, #e4e4e4 40px),
-        repeating-linear-gradient(to bottom, transparent 0, transparent 39px, #e4e4e4 39px, #e4e4e4 40px);
+      background: #f8f8f8;
     }
-    .scroll-origin {
+    .scroll-cell {
       position: absolute;
-      left: 960px;
-      top: 960px;
-      width: 80px;
-      height: 80px;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: #fffbe6;
-      border: 1px solid #e3d27a;
+      border: 1px solid rgba(255,255,255,0.6);
       box-sizing: border-box;
-      font-weight: bold;
-      color: #222;
+      color: #fff;
+      font-size: 11px;
+      line-height: 1.25;
+      text-align: center;
+      white-space: pre-line;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.45);
+      will-change: transform;
     }
     
     .hint {
@@ -304,21 +300,77 @@
     const scrollWindow = document.getElementById('scroll-window');
 
     // ===== scroll test grid =====
-    const GRID_SIZE = 2000;
+    const GRID_COLS = 2000;
+    const GRID_ROWS = 2000;
+    const GRID_MIN_COORD = -1000;
+    const GRID_MAX_COORD = 1000;
+    const CELL_WIDTH = 72;
+    const CELL_HEIGHT = 50;
+    const VIRTUAL_OVERSCAN = 2;
 
     const scrollGrid = document.createElement('div');
     scrollGrid.className = 'scroll-grid';
-
-    const originCell = document.createElement('div');
-    originCell.className = 'scroll-origin';
-    originCell.textContent = 'Center';
-    scrollGrid.appendChild(originCell);
+    scrollGrid.style.width = `${GRID_COLS * CELL_WIDTH}px`;
+    scrollGrid.style.height = `${GRID_ROWS * CELL_HEIGHT}px`;
 
     scrollWindow.appendChild(scrollGrid);
 
-    // center the 2000 x 2000 test area
-    scrollWindow.scrollTop = (GRID_SIZE - scrollWindow.clientHeight) / 2;
-    scrollWindow.scrollLeft = (GRID_SIZE - scrollWindow.clientWidth) / 2;
+    function indexToCoord(index, count) {
+      return GRID_MIN_COORD + (index / (count - 1)) * (GRID_MAX_COORD - GRID_MIN_COORD);
+    }
+
+    function formatCoord(value) {
+      const rounded = Math.round(value);
+      return Math.abs(value - rounded) < 0.05 ? String(rounded) : value.toFixed(1);
+    }
+
+    function colorForCell(colIndex, rowIndex) {
+      const xRatio = colIndex / (GRID_COLS - 1);
+      const yRatio = rowIndex / (GRID_ROWS - 1);
+      const mix = (xRatio + yRatio) / 2;
+      const blue = [37, 99, 235];
+      const red = [220, 38, 38];
+      const rgb = blue.map((start, i) => Math.round(start + (red[i] - start) * mix));
+      return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+    }
+
+    function renderScrollGrid() {
+      const firstCol = Math.max(0, Math.floor(scrollWindow.scrollLeft / CELL_WIDTH) - VIRTUAL_OVERSCAN);
+      const lastCol = Math.min(
+        GRID_COLS - 1,
+        Math.ceil((scrollWindow.scrollLeft + scrollWindow.clientWidth) / CELL_WIDTH) + VIRTUAL_OVERSCAN
+      );
+      const firstRow = Math.max(0, Math.floor(scrollWindow.scrollTop / CELL_HEIGHT) - VIRTUAL_OVERSCAN);
+      const lastRow = Math.min(
+        GRID_ROWS - 1,
+        Math.ceil((scrollWindow.scrollTop + scrollWindow.clientHeight) / CELL_HEIGHT) + VIRTUAL_OVERSCAN
+      );
+
+      const fragment = document.createDocumentFragment();
+
+      for (let rowIndex = firstRow; rowIndex <= lastRow; rowIndex++) {
+        const y = indexToCoord(rowIndex, GRID_ROWS);
+        for (let colIndex = firstCol; colIndex <= lastCol; colIndex++) {
+          const x = indexToCoord(colIndex, GRID_COLS);
+          const cell = document.createElement('div');
+          cell.className = 'scroll-cell';
+          cell.style.width = `${CELL_WIDTH}px`;
+          cell.style.height = `${CELL_HEIGHT}px`;
+          cell.style.transform = `translate(${colIndex * CELL_WIDTH}px, ${rowIndex * CELL_HEIGHT}px)`;
+          cell.style.background = colorForCell(colIndex, rowIndex);
+          cell.textContent = `X座標 ${formatCoord(x)}\nY座標 ${formatCoord(y)}`;
+          fragment.appendChild(cell);
+        }
+      }
+
+      scrollGrid.replaceChildren(fragment);
+    }
+
+    // center the 2000 x 2000 cell grid
+    scrollWindow.scrollTop = (scrollGrid.offsetHeight - scrollWindow.clientHeight) / 2;
+    scrollWindow.scrollLeft = (scrollGrid.offsetWidth - scrollWindow.clientWidth) / 2;
+    renderScrollGrid();
+    scrollWindow.addEventListener('scroll', renderScrollGrid, { passive: true });
 
     // ===== canvas resize =====
     function resizeCanvas() {

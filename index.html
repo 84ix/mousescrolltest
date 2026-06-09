@@ -120,20 +120,36 @@
       display: flex;
       flex-direction: column;
       gap: 4px;
-      min-width: 160px;
+      min-width: 320px;
       font-size: 12px;
       color: #555;
     }
-    #scroll-window {
+    
+    .scroll-window-vertical {
       width: 180px;
       height: 320px;
       border-radius: 8px;
       background: #ffffff;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
       overflow-y: auto;
+      overflow-x: hidden;
       font-family: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       font-size: 13px;
     }
+    
+    .scroll-window-horizontal {
+      width: 280px;
+      height: 80px;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      overflow-x: auto;
+      overflow-y: hidden;
+      font-family: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 13px;
+      display: flex;
+    }
+    
     .scroll-row {
       padding: 4px 8px;
       border-bottom: 1px solid #eeeeee;
@@ -143,10 +159,43 @@
       background: #fffbe6;
       font-weight: bold;
     }
+    
+    .scroll-row-h {
+      padding: 4px 8px;
+      border-right: 1px solid #eeeeee;
+      box-sizing: border-box;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      min-width: 40px;
+    }
+    .scroll-row-h.zero {
+      background: #fffbe6;
+      font-weight: bold;
+    }
+    
     .hint {
       font-size: 11px;
       color: #666;
       margin-top: 6px;
+    }
+    
+    .legend {
+      margin-top: 8px;
+      font-size: 12px;
+      display: flex;
+      gap: 16px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .legend-color {
+      display: inline-block;
+      width: 12px;
+      height: 2px;
+      border-radius: 1px;
     }
   </style>
 </head>
@@ -192,12 +241,28 @@
       <canvas id="graph"></canvas>
 
       <div class="scroll-test">
-        <div>Scroll test table<br>(-1000 to +1000)</div>
-        <div id="scroll-window"></div>
+        <div>
+          <div>Vertical scroll test</div>
+          <div id="scroll-window-v"></div>
+        </div>
+        <div>
+          <div>Horizontal scroll test</div>
+          <div id="scroll-window-h"></div>
+        </div>
       </div>
     </div>
     <div class="hint">
       X axis: time (s, right = now) / Y axis: scroll speed (lines/sec)
+    </div>
+    <div class="legend">
+      <div class="legend-item">
+        <span class="legend-color" style="background: #0077cc; width: 20px;"></span>
+        <span>Vertical Scroll</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: #ff4444; width: 20px;"></span>
+        <span>Horizontal Scroll</span>
+      </div>
     </div>
   </div>
 
@@ -207,7 +272,8 @@
     const SAMPLE_INTERVAL = 20; // high time resolution
     const CURRENT_WINDOW = 0.2;
 
-    const scrollEvents = [];
+    const verticalScrollEvents = [];
+    const horizontalScrollEvents = [];
     const speedSamples = [];
 
     let maxSpeedRecorded = 0;
@@ -227,9 +293,10 @@
     const canvas = document.getElementById('graph');
     const ctx    = canvas.getContext('2d');
 
-    const scrollWindow = document.getElementById('scroll-window');
+    const scrollWindowV = document.getElementById('scroll-window-v');
+    const scrollWindowH = document.getElementById('scroll-window-h');
 
-    // ===== scroll test table =====
+    // ===== scroll test table (vertical) =====
     const MIN_ROW = -1000;
     const MAX_ROW = 1000;
 
@@ -238,14 +305,35 @@
       row.className = 'scroll-row';
       if (i === 0) row.classList.add('zero');
       row.textContent = i;
-      scrollWindow.appendChild(row);
+      scrollWindowV.appendChild(row);
     }
 
     // center 0
-    const zeroRow = scrollWindow.querySelector('.scroll-row.zero');
-    if (zeroRow) {
-      const targetTop = zeroRow.offsetTop + zeroRow.offsetHeight / 2;
-      scrollWindow.scrollTop = targetTop - scrollWindow.clientHeight / 2;
+    const zeroRowV = scrollWindowV.querySelector('.scroll-row.zero');
+    if (zeroRowV) {
+      const targetTop = zeroRowV.offsetTop + zeroRowV.offsetHeight / 2;
+      scrollWindowV.scrollTop = targetTop - scrollWindowV.clientHeight / 2;
+    }
+
+    // ===== scroll test table (horizontal) =====
+    const scrollWrapper = document.createElement('div');
+    scrollWrapper.style.display = 'flex';
+    scrollWrapper.style.height = '100%';
+    
+    for (let i = -500; i <= 500; i++) {
+      const col = document.createElement('div');
+      col.className = 'scroll-row-h';
+      if (i === 0) col.classList.add('zero');
+      col.textContent = i;
+      scrollWrapper.appendChild(col);
+    }
+    scrollWindowH.appendChild(scrollWrapper);
+    
+    // center 0 horizontally
+    const zeroColH = scrollWindowH.querySelector('.scroll-row-h.zero');
+    if (zeroColH) {
+      const targetLeft = zeroColH.offsetLeft + zeroColH.offsetWidth / 2;
+      scrollWindowH.scrollLeft = targetLeft - scrollWindowH.clientWidth / 2;
     }
 
     // ===== canvas resize =====
@@ -260,13 +348,13 @@
     // deltaY -> logical lines
     // - deltaMode === 1: "lines" from OS. On this system, 4 lines ≈ 1 logical line.
     // - deltaMode === 0: pixels, converted using pixelsPerLine.
-    function toLines(deltaY, deltaMode) {
+    function toLines(delta, deltaMode) {
       if (deltaMode === 1) {
-        return -deltaY / 4; // 4 OS lines -> 1 logical line
+        return -delta / 4; // 4 OS lines -> 1 logical line
       } else if (deltaMode === 0) {
-        return -deltaY / pixelsPerLine;
+        return -delta / pixelsPerLine;
       } else {
-        return -deltaY / 4;
+        return -delta / 4;
       }
     }
 
@@ -285,23 +373,36 @@
       }
     });
 
-    // global wheel listener
+    // global wheel listener - track vertical and horizontal separately
     window.addEventListener('wheel', (e) => {
       const now = performance.now() / 1000;
-      const deltaLines = toLines(e.deltaY, e.deltaMode);
-      scrollEvents.push({ time: now, deltaLines });
+      
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        // Vertical scroll
+        const deltaLines = toLines(e.deltaY, e.deltaMode);
+        verticalScrollEvents.push({ time: now, deltaLines });
 
-      const limit = now - HISTORY_SECONDS;
-      while (scrollEvents.length > 0 && scrollEvents[0].time < limit) {
-        scrollEvents.shift();
+        const limit = now - HISTORY_SECONDS;
+        while (verticalScrollEvents.length > 0 && verticalScrollEvents[0].time < limit) {
+          verticalScrollEvents.shift();
+        }
+      } else if (Math.abs(e.deltaX) > 0) {
+        // Horizontal scroll
+        const deltaLines = toLines(e.deltaX, e.deltaMode);
+        horizontalScrollEvents.push({ time: now, deltaLines });
+
+        const limit = now - HISTORY_SECONDS;
+        while (horizontalScrollEvents.length > 0 && horizontalScrollEvents[0].time < limit) {
+          horizontalScrollEvents.shift();
+        }
       }
     }, { passive: true });
 
-    function computeAverageSpeed(windowSec, nowSec) {
+    function computeAverageSpeed(events, windowSec, nowSec) {
       const fromTime = nowSec - windowSec;
       let sumLines = 0;
-      for (let i = scrollEvents.length - 1; i >= 0; i--) {
-        const ev = scrollEvents[i];
+      for (let i = events.length - 1; i >= 0; i--) {
+        const ev = events[i];
         if (ev.time < fromTime) break;
         sumLines += Math.abs(ev.deltaLines);
       }
@@ -331,10 +432,11 @@
       const plotH  = plotY1 - plotY0;
 
       const minTime = nowSec - HISTORY_SECONDS;
-      const samples = speedSamples.filter(s => s.time >= minTime);
+      const verticalSamples = speedSamples.filter(s => s.time >= minTime && s.type === 'vertical');
+      const horizontalSamples = speedSamples.filter(s => s.time >= minTime && s.type === 'horizontal');
 
       let maxSpeed = 0;
-      for (const s of samples) {
+      for (const s of verticalSamples.concat(horizontalSamples)) {
         if (s.speed > maxSpeed) maxSpeed = s.speed;
       }
       if (maxSpeed < 10) maxSpeed = 10;
@@ -392,11 +494,11 @@
       ctx.fillText('Scroll speed (lines/sec)', 0, 0);
       ctx.restore();
 
-      // data line
-      if (samples.length >= 2) {
+      // draw vertical scroll data line (blue)
+      if (verticalSamples.length >= 2) {
         ctx.beginPath();
-        for (let i = 0; i < samples.length; i++) {
-          const s = samples[i];
+        for (let i = 0; i < verticalSamples.length; i++) {
+          const s = verticalSamples[i];
           const dt = nowSec - s.time;
           const x = plotX1 - (dt / HISTORY_SECONDS) * plotW;
           const y = plotY1 - (s.speed / maxSpeed) * plotH;
@@ -408,14 +510,34 @@
         ctx.lineWidth = 2;
         ctx.stroke();
       }
+
+      // draw horizontal scroll data line (red)
+      if (horizontalSamples.length >= 2) {
+        ctx.beginPath();
+        for (let i = 0; i < horizontalSamples.length; i++) {
+          const s = horizontalSamples[i];
+          const dt = nowSec - s.time;
+          const x = plotX1 - (dt / HISTORY_SECONDS) * plotW;
+          const y = plotY1 - (s.speed / maxSpeed) * plotH;
+
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = '#ff4444';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
     }
 
     function tick() {
       const nowSec = performance.now() / 1000;
 
-      const currentSpeed = computeAverageSpeed(CURRENT_WINDOW, nowSec);
-      const avg1s        = computeAverageSpeed(1, nowSec);
-      const avg3s        = computeAverageSpeed(3, nowSec);
+      const currentVerticalSpeed = computeAverageSpeed(verticalScrollEvents, CURRENT_WINDOW, nowSec);
+      const currentHorizontalSpeed = computeAverageSpeed(horizontalScrollEvents, CURRENT_WINDOW, nowSec);
+      const currentSpeed = Math.max(currentVerticalSpeed, currentHorizontalSpeed);
+      
+      const avg1s        = computeAverageSpeed(verticalScrollEvents, 1, nowSec);
+      const avg3s        = computeAverageSpeed(verticalScrollEvents, 3, nowSec);
 
       // update max
       if (currentSpeed > maxSpeedRecorded) {
@@ -429,7 +551,8 @@
       valMax.textContent     = format1(maxSpeedRecorded);
 
       // graph samples
-      speedSamples.push({ time: nowSec, speed: currentSpeed });
+      speedSamples.push({ time: nowSec, speed: currentVerticalSpeed, type: 'vertical' });
+      speedSamples.push({ time: nowSec, speed: currentHorizontalSpeed, type: 'horizontal' });
       const limit = nowSec - HISTORY_SECONDS;
       while (speedSamples.length > 0 && speedSamples[0].time < limit) {
         speedSamples.shift();

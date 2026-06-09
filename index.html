@@ -304,14 +304,13 @@
     const GRID_ROWS = 2000;
     const GRID_MIN_COORD = -1000;
     const GRID_MAX_COORD = 1000;
-    const CELL_WIDTH = 72;
-    const CELL_HEIGHT = 50;
+    const CELL_SIZE = 64;
     const VIRTUAL_OVERSCAN = 2;
 
     const scrollGrid = document.createElement('div');
     scrollGrid.className = 'scroll-grid';
-    scrollGrid.style.width = `${GRID_COLS * CELL_WIDTH}px`;
-    scrollGrid.style.height = `${GRID_ROWS * CELL_HEIGHT}px`;
+    scrollGrid.style.width = `${GRID_COLS * CELL_SIZE}px`;
+    scrollGrid.style.height = `${GRID_ROWS * CELL_SIZE}px`;
 
     scrollWindow.appendChild(scrollGrid);
 
@@ -335,15 +334,15 @@
     }
 
     function renderScrollGrid() {
-      const firstCol = Math.max(0, Math.floor(scrollWindow.scrollLeft / CELL_WIDTH) - VIRTUAL_OVERSCAN);
+      const firstCol = Math.max(0, Math.floor(scrollWindow.scrollLeft / CELL_SIZE) - VIRTUAL_OVERSCAN);
       const lastCol = Math.min(
         GRID_COLS - 1,
-        Math.ceil((scrollWindow.scrollLeft + scrollWindow.clientWidth) / CELL_WIDTH) + VIRTUAL_OVERSCAN
+        Math.ceil((scrollWindow.scrollLeft + scrollWindow.clientWidth) / CELL_SIZE) + VIRTUAL_OVERSCAN
       );
-      const firstRow = Math.max(0, Math.floor(scrollWindow.scrollTop / CELL_HEIGHT) - VIRTUAL_OVERSCAN);
+      const firstRow = Math.max(0, Math.floor(scrollWindow.scrollTop / CELL_SIZE) - VIRTUAL_OVERSCAN);
       const lastRow = Math.min(
         GRID_ROWS - 1,
-        Math.ceil((scrollWindow.scrollTop + scrollWindow.clientHeight) / CELL_HEIGHT) + VIRTUAL_OVERSCAN
+        Math.ceil((scrollWindow.scrollTop + scrollWindow.clientHeight) / CELL_SIZE) + VIRTUAL_OVERSCAN
       );
 
       const fragment = document.createDocumentFragment();
@@ -354,11 +353,11 @@
           const x = indexToCoord(colIndex, GRID_COLS);
           const cell = document.createElement('div');
           cell.className = 'scroll-cell';
-          cell.style.width = `${CELL_WIDTH}px`;
-          cell.style.height = `${CELL_HEIGHT}px`;
-          cell.style.transform = `translate(${colIndex * CELL_WIDTH}px, ${rowIndex * CELL_HEIGHT}px)`;
+          cell.style.width = `${CELL_SIZE}px`;
+          cell.style.height = `${CELL_SIZE}px`;
+          cell.style.transform = `translate(${colIndex * CELL_SIZE}px, ${rowIndex * CELL_SIZE}px)`;
           cell.style.background = colorForCell(colIndex, rowIndex);
-          cell.textContent = `X座標 ${formatCoord(x)}\nY座標 ${formatCoord(y)}`;
+          cell.textContent = `${formatCoord(x)}\n${formatCoord(y)}`;
           fragment.appendChild(cell);
         }
       }

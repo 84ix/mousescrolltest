@@ -75,6 +75,7 @@
       margin-top: 10px;
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 8px;
       font-size: 12px;
       color: #555;
@@ -240,6 +241,9 @@
     <div class="scale-row">
       <span>Pixels per 1 logical line:</span>
       <input id="px-per-line" type="number" min="1" step="1" value="160" />
+      <span>Horizontal axis scale:</span>
+      <input id="history-seconds" type="number" min="1" step="1" value="20" />
+      <span>sec</span>
       <button id="btn-apply-scale">Apply</button>
     </div>
   </div>
@@ -270,7 +274,7 @@
 
   <script>
     // ===== settings =====
-    const HISTORY_SECONDS = 20;
+    const DEFAULT_HISTORY_SECONDS = 20;
     const SAMPLE_INTERVAL = 20; // high time resolution
     const CURRENT_WINDOW = 0.2;
 
@@ -282,8 +286,10 @@
 
     // pixels per 1 logical line (for deltaMode === 0)
     const pxInput = document.getElementById('px-per-line');
+    const historyInput = document.getElementById('history-seconds');
     const btnApplyScale = document.getElementById('btn-apply-scale');
     let pixelsPerLine = parseFloat(pxInput.value) || 160;
+    let historySeconds = parseFloat(historyInput.value) || DEFAULT_HISTORY_SECONDS;
 
     // DOM
     const valCurrent  = document.getElementById('val-current');
@@ -406,14 +412,23 @@
       if (v > 0 && Number.isFinite(v)) {
         pixelsPerLine = v;
       }
+
+      const seconds = parseFloat(historyInput.value);
+      if (seconds > 0 && Number.isFinite(seconds)) {
+        historySeconds = seconds;
+      } else {
+        historyInput.value = historySeconds;
+      }
     });
 
     // also allow Enter key in the input
-    pxInput.addEventListener('keydown', (e) => {
+    function applyOnEnter(e) {
       if (e.key === 'Enter') {
         btnApplyScale.click();
       }
-    });
+    }
+    pxInput.addEventListener('keydown', applyOnEnter);
+    historyInput.addEventListener('keydown', applyOnEnter);
 
     // global wheel listener - track vertical and horizontal separately
     window.addEventListener('wheel', (e) => {
@@ -424,7 +439,7 @@
         const deltaLines = toLines(e.deltaY, e.deltaMode);
         verticalScrollEvents.push({ time: now, deltaLines });
 
-        const limit = now - HISTORY_SECONDS;
+        const limit = now - historySeconds;
         while (verticalScrollEvents.length > 0 && verticalScrollEvents[0].time < limit) {
           verticalScrollEvents.shift();
         }
@@ -433,7 +448,7 @@
         const deltaLines = toLines(e.deltaX, e.deltaMode);
         horizontalScrollEvents.push({ time: now, deltaLines });
 
-        const limit = now - HISTORY_SECONDS;
+        const limit = now - historySeconds;
         while (horizontalScrollEvents.length > 0 && horizontalScrollEvents[0].time < limit) {
           horizontalScrollEvents.shift();
         }
@@ -456,6 +471,12 @@
       return n.toFixed(1);
     }
 
+    function pickTimeTickStep(seconds) {
+      const roughStep = seconds / 4;
+      const steps = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
+      return steps.find(step => step >= roughStep) || 1200;
+    }
+
     function drawGraph(nowSec) {
       const w = canvas.width;
       const h = canvas.height;
@@ -473,7 +494,7 @@
       const plotW  = plotX1 - plotX0;
       const plotH  = plotY1 - plotY0;
 
-      const minTime = nowSec - HISTORY_SECONDS;
+      const minTime = nowSec - historySeconds;
       const verticalSamples = speedSamples.filter(s => s.time >= minTime && s.type === 'vertical');
       const horizontalSamples = speedSamples.filter(s => s.time >= minTime && s.type === 'horizontal');
 
@@ -493,8 +514,9 @@
 
       // vertical grid (time)
       ctx.beginPath();
-      for (let t = 0; t <= HISTORY_SECONDS; t += 5) {
-        const x = plotX0 + (t / HISTORY_SECONDS) * plotW;
+      const timeTickStep = pickTimeTickStep(historySeconds);
+      for (let t = 0; t <= historySeconds; t += timeTickStep) {
+        const x = plotX0 + (t / historySeconds) * plotW;
         ctx.moveTo(x, plotY0);
         ctx.lineTo(x, plotY1);
       }
@@ -514,10 +536,10 @@
       ctx.fillStyle = '#666';
       ctx.font = '10px system-ui';
 
-      // x axis tick labels (-20, -15, ..., 0)
-      for (let t = 0; t <= HISTORY_SECONDS; t += 5) {
-        const x = plotX0 + (t / HISTORY_SECONDS) * plotW;
-        const label = (t - HISTORY_SECONDS).toString();
+      // x axis tick labels (-scale, ..., 0)
+      for (let t = 0; t <= historySeconds; t += timeTickStep) {
+        const x = plotX0 + (t / historySeconds) * plotW;
+        const label = (t - historySeconds).toString();
         ctx.fillText(label, x - 6, h - 10);
       }
       ctx.fillText('Time (s, right = now)', plotX0 + plotW / 2 - 50, h - 2);
@@ -542,7 +564,7 @@
         for (let i = 0; i < verticalSamples.length; i++) {
           const s = verticalSamples[i];
           const dt = nowSec - s.time;
-          const x = plotX1 - (dt / HISTORY_SECONDS) * plotW;
+          const x = plotX1 - (dt / historySeconds) * plotW;
           const y = plotY1 - (s.speed / maxSpeed) * plotH;
 
           if (i === 0) ctx.moveTo(x, y);
@@ -559,7 +581,7 @@
         for (let i = 0; i < horizontalSamples.length; i++) {
           const s = horizontalSamples[i];
           const dt = nowSec - s.time;
-          const x = plotX1 - (dt / HISTORY_SECONDS) * plotW;
+          const x = plotX1 - (dt / historySeconds) * plotW;
           const y = plotY1 - (s.speed / maxSpeed) * plotH;
 
           if (i === 0) ctx.moveTo(x, y);
@@ -595,7 +617,7 @@
       // graph samples
       speedSamples.push({ time: nowSec, speed: currentVerticalSpeed, type: 'vertical' });
       speedSamples.push({ time: nowSec, speed: currentHorizontalSpeed, type: 'horizontal' });
-      const limit = nowSec - HISTORY_SECONDS;
+      const limit = nowSec - historySeconds;
       while (speedSamples.length > 0 && speedSamples[0].time < limit) {
         speedSamples.shift();
       }

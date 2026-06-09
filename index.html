@@ -157,12 +157,10 @@
       justify-content: center;
       border: 1px solid rgba(255,255,255,0.6);
       box-sizing: border-box;
-      color: #fff;
       font-size: 11px;
       line-height: 1.25;
       text-align: center;
       white-space: pre-line;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.45);
       will-change: transform;
     }
     
@@ -324,13 +322,21 @@
     }
 
     function colorForCell(colIndex, rowIndex) {
-      const xRatio = colIndex / (GRID_COLS - 1);
-      const yRatio = rowIndex / (GRID_ROWS - 1);
-      const mix = (xRatio + yRatio) / 2;
-      const blue = [37, 99, 235];
-      const red = [220, 38, 38];
-      const rgb = blue.map((start, i) => Math.round(start + (red[i] - start) * mix));
+      const x = indexToCoord(colIndex, GRID_COLS);
+      const y = indexToCoord(rowIndex, GRID_ROWS);
+      const diagonal = (x + y) / (GRID_MAX_COORD * 2);
+      const intensity = Math.min(1, Math.abs(diagonal));
+      const white = [255, 255, 255];
+      const target = diagonal < 0 ? [37, 99, 235] : [220, 38, 38];
+      const rgb = white.map((start, i) => Math.round(start + (target[i] - start) * intensity));
       return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+    }
+
+    function textColorForCell(colIndex, rowIndex) {
+      const x = indexToCoord(colIndex, GRID_COLS);
+      const y = indexToCoord(rowIndex, GRID_ROWS);
+      const diagonal = (x + y) / (GRID_MAX_COORD * 2);
+      return Math.abs(diagonal) > 0.55 ? '#fff' : '#222';
     }
 
     function renderScrollGrid() {
@@ -357,6 +363,7 @@
           cell.style.height = `${CELL_SIZE}px`;
           cell.style.transform = `translate(${colIndex * CELL_SIZE}px, ${rowIndex * CELL_SIZE}px)`;
           cell.style.background = colorForCell(colIndex, rowIndex);
+          cell.style.color = textColorForCell(colIndex, rowIndex);
           cell.textContent = `${formatCoord(x)}\n${formatCoord(y)}`;
           fragment.appendChild(cell);
         }
